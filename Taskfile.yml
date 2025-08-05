@@ -11,4 +11,5 @@ tasks:
         platforms: [linux/arm]
       - cmd: env GOOS=darwin go build -o ./bin/darwin/display-driver .
         platforms: [darwin]
+      - cmd: env GOOS=linux GOARCH=x86_64 go build -o ./bin/linux-x86_64/display-driver .
 
