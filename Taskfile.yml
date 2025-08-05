@@ -1,0 +1,14 @@
+version: '3'
+
+dotenv: ['.env']
+
+tasks:
+  build:
+    cmds:
+      - cmd: env GOOS=linux GOARCH=arm64 go build -o ./bin/linux-arm64/display-driver .     
+        platforms: [linux/arm64] 
+      - cmd: env GOOS=linux GOARCH=arm go build -o ./bin/linux-arm/display-driver .
+        platforms: [linux/arm]
+      - cmd: env GOOS=darwin go build -o ./bin/darwin/display-driver .
+        platforms: [darwin]
+
