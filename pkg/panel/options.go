@@ -19,7 +19,7 @@ func getOptions(of ...OptionFunc) (Options, error) {
 		optionFunc(&o)
 	}
 
-	if o.bus != nil && o.multiplexer != nil {
+	if o.bus != nil || o.multiplexer != nil {
 		return Options{}, errors.New("required options are missing")
 	}
 
