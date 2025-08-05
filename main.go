@@ -1,16 +1,14 @@
 package main
 
 import (
-	"image"
-	"image/color"
-	"image/draw"
 	"log"
+	"math/rand/v2"
+	"os"
+	"time"
 
-	"golang.org/x/image/font"
-	"golang.org/x/image/font/basicfont"
-	"golang.org/x/image/math/fixed"
+	"github.com/robotjoosen/go-display-driver/pkg/image"
+	"github.com/robotjoosen/go-display-driver/pkg/panel"
 	"periph.io/x/conn/v3/i2c/i2creg"
-	"periph.io/x/devices/v3/ssd1306"
 	"periph.io/x/host/v3"
 )
 
@@ -22,29 +20,25 @@ func main() {
 	bus, err := i2creg.Open("")
 	if err != nil {
 		log.Fatal(err)
-	}
-	defer bus.Close()
-
-	opts := ssd1306.Opts{
-		W: 128,
-		H: 64,
+		os.Exit(1)
 	}
 
-	dev, err := ssd1306.NewI2C(bus, &opts)
-	if err != nil {
-		log.Fatal(err)
+	p := panel.New(bus)
+
+	for i := range 4 {
+		if err := p.DisplayAdd(1 << i); err != nil {
+			log.Fatal(err.Error())
+
+			os.Exit(1)
+		}
 	}
 
-	img := image.NewGray(image.Rect(0, 0, 128, 64))
-	draw.Draw(img, img.Bounds(), &image.Uniform{color.Black}, image.Point{}, draw.Src)
-
-	d := &font.Drawer{
-		Dst:  img,
-		Src:  image.White,
-		Face: basicfont.Face7x13,
-		Dot:  fixed.P(5, 20),
+	for {
+		for i := range 4 {
+			if err := p.DisplayWrite(1<<i, image.Images[rand.IntN(4)]); err != nil {
+				log.Println(err.Error())
+			}
+			time.Sleep(time.Millisecond * 100)
+		}
 	}
-	d.DrawString("Hello, world!")
-
-	dev.Draw(dev.Bounds(), img, image.Point{})
 }

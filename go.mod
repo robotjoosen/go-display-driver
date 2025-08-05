@@ -10,4 +10,8 @@ require (
 	tinygo.org/x/drivers v0.32.0
 )
 
-require github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
+require (
+	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
+	github.com/puzpuzpuz/xsync v1.5.2 // indirect
+	github.com/puzpuzpuz/xsync/v4 v4.1.0 // indirect
+)

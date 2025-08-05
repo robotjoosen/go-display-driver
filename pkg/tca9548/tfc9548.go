@@ -3,16 +3,16 @@ package tca9548
 import (
 	"fmt"
 
-	"tinygo.org/x/drivers"
+	"periph.io/x/conn/v3/i2c"
 )
 
 type TCA9548 struct {
 	address       []uint16
 	targetAddress int
-	bus           drivers.I2C
+	bus           i2c.Bus
 }
 
-func New(bus drivers.I2C) *TCA9548 {
+func New(bus i2c.Bus) *TCA9548 {
 	return &TCA9548{
 		bus:           bus,
 		address:       []uint16{0x70, 0x71, 0x72, 0x73, 0x74, 0x75, 0x76, 0x77},
@@ -34,7 +34,11 @@ func (t *TCA9548) SetAddress(i int) *TCA9548 {
 func (t *TCA9548) SetTarget(i byte) {
 	if err := t.bus.Tx(t.getAddress(), []byte{i}, make([]byte, 0)); err != nil {
 		fmt.Println(err.Error())
+
+		return
 	}
+
+	fmt.Println("set tca9548 target:", i)
 }
 
 func (t *TCA9548) getAddress() uint16 {
