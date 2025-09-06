@@ -7,7 +7,7 @@ tasks:
     platforms: [linux/arm64, linux/arm]
     cmds:
       - cp "$BINARY_PATH" "$INSTALL_PATH"
-      - chmod +x "$INSTALL_PATH"
+      - sudo chmod +x "$INSTALL_PATH"
       - | 
           bash -c "cat > $SERVICE_FILE" <<EOF
           [Unit]
@@ -19,16 +19,16 @@ tasks:
           ExecStart=$INSTALL_PATH
           Restart=on-failure
           User=$USER
-          WorkingDirectory=/home/$USER
+          WorkingDirectory=/
           Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
           [Install]
           WantedBy=multi-user.target
           EOF
-      - systemctl daemon-reexec
-      - systemctl daemon-reload
-      - systemctl enable "$SERVICE_NAME"
-      - systemctl start "$SERVICE_NAME"
+      - sudo systemctl daemon-reexec
+      - sudo systemctl daemon-reload
+      - sudo systemctl enable "$SERVICE_NAME"
+      - sudo systemctl start "$SERVICE_NAME"
   uninstall:
     platforms: [linux/arm64, linux/arm]
     cmds:
