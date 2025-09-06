@@ -18,8 +18,8 @@ tasks:
           Type=simple
           ExecStart=$INSTALL_PATH
           Restart=on-failure
-          User=$RUN_AS_USER
-          WorkingDirectory=/home/$RUN_AS_USER
+          User=$USER
+          WorkingDirectory=/home/$USER
           Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
           [Install]
