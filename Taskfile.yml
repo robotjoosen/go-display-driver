@@ -37,6 +37,11 @@ tasks:
       - rm $SERVICE_FILE
       - systemctl daemon-reexec
       - systemctl daemon-reload
+  update:
+    platforms: [linux/arm64, linux/arm]
+      cmds:
+        - cp "$BINARY_PATH" "$INSTALL_PATH"
+        - sudo systemctl restart "$SERVICE_NAME"
   build:
     cmds:
       - cmd: env GOOS=darwin go build -o ./bin/darwin/display-driver .
