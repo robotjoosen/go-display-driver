@@ -1,6 +1,8 @@
 package panel
 
 import (
+	"image"
+
 	"github.com/puzpuzpuz/xsync/v4"
 	"periph.io/x/conn/v3/i2c"
 	"periph.io/x/devices/v3/ssd1306"
@@ -51,4 +53,15 @@ func (p *Panel) DisplayWrite(channel int, data []byte) error {
 	_, err = d.Write(data)
 
 	return err
+}
+
+func (p *Panel) DisplayDraw(channel int, img image.Image) error {
+	err := p.multiplexer.SetChannel(channel)
+	if err != nil {
+		return err
+	}
+
+	d, _ := p.displays.Load(channel)
+
+	return d.Draw(img.Bounds(), img, image.Point{})
 }

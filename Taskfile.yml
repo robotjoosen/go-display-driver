@@ -29,6 +29,7 @@ tasks:
       - sudo systemctl daemon-reload
       - sudo systemctl enable "$SERVICE_NAME"
       - sudo systemctl start "$SERVICE_NAME"
+  
   uninstall:
     platforms: [linux/arm64, linux/arm]
     cmds:
@@ -37,18 +38,22 @@ tasks:
       - rm $SERVICE_FILE
       - systemctl daemon-reexec
       - systemctl daemon-reload
+  
   update:
     platforms: [linux/arm64, linux/arm]
-      cmds:
-        - cp "$BINARY_PATH" "$INSTALL_PATH"
-        - sudo systemctl restart "$SERVICE_NAME"
+    cmds:
+      - cp "$BINARY_PATH" "$INSTALL_PATH"
+      - sudo systemctl restart "$SERVICE_NAME"
+  
   build:
     cmds:
-      - cmd: env GOOS=darwin go build -o ./bin/darwin/display-driver .
+      - cmd: env GOOS=darwin go build -o ./bin/darwin/display-driver ./cmd/app
         platforms: [darwin]
-      - cmd: env GOOS=linux GOARCH=arm64 go build -o ./bin/arm/display-driver .
+      - cmd: env GOOS=linux GOARCH=arm64 go build -o ./bin/arm/display-driver ./cmd/app
         platforms: [linux/arm64, linux/arm]
-  build-darwin:
-      - cmd: env GOOS=darwin go build -o ./bin/darwin/display-driver .
-  build-arm:
-      - cmd: env GOOS=linux GOARCH=arm64 go build -o ./bin/arm/display-driver .
+  
+  build:darwin:
+      - cmd: env GOOS=darwin go build -o ./bin/darwin/display-driver ./cmd/app
+  
+  build:arm:
+      - cmd: env GOOS=linux GOARCH=arm go build -o ./bin/arm/display-driver ./cmd/app

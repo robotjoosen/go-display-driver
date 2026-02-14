@@ -1,4 +1,4 @@
-package image
+package sprite
 
 var Images = [][]byte{
 	// 'hexagon', 128x64px
