@@ -189,7 +189,7 @@ func connectMessageBus(u string) *rabbitmq.Conn {
 		if _, err := net.DialTimeout("tcp", mbu.Host, 1*time.Second); err != nil {
 			retries++
 
-			<-time.NewTicker(2 * time.Second).C
+			<-time.NewTimer(2 * time.Second).C
 
 			continue
 		}

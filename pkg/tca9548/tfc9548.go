@@ -36,7 +36,7 @@ func (t *TCA9548) SetAddress(i int) error {
 }
 
 func (t *TCA9548) SetChannel(i int) error {
-	if len(t.channels) < i {
+	if i >= len(t.channels) {
 		return errors.New("invalid channel")
 	}
 

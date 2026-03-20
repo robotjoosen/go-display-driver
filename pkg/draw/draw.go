@@ -3,8 +3,10 @@ package draw
 import (
 	"image"
 	"image/color"
+	"image/png"
 	"log/slog"
 	"math"
+	"os"
 
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/basicfont"
@@ -36,10 +38,10 @@ func Rectangle(img *image.Gray, x, y, w, h int) {
 }
 
 func RectangleRoundedBorders(img *image.Gray, x, y, w, h, r int) {
-	horizontalLine(img, y, x+r, (x+w)-r, white)
-	horizontalLine(img, y+h-1, +1+r, (x+w)-r, white)
-	verticalLine(img, x, y+r, (y+h)-r, white)
-	verticalLine(img, x+w-1, y+r, (y+h)-r, white)
+	horizontalLine(img, y, r, (x+w)-r-1, white)
+	horizontalLine(img, y+h-1, r, (x+w)-r-1, white)
+	verticalLine(img, x, y+r, (y+h)-r-1, white)
+	verticalLine(img, x+w-1, y+r, (y+h)-r-1, white)
 
 	quater := math.Pi / 2
 	circle(img, (x+r)-1, y+r-1, r, quater*2, quater*3, white)
@@ -59,9 +61,47 @@ func Text(img *image.Gray, x, y, w, h int, text string) {
 	d.DrawString(text)
 }
 
+func PNG(dst *image.Gray, x, y int, filepath string) error {
+	file, err := os.Open(filepath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	src, err := png.Decode(file)
+	if err != nil {
+		return err
+	}
+
+	bounds := src.Bounds()
+	for py := bounds.Min.Y; py < bounds.Max.Y; py++ {
+		for px := bounds.Min.X; px < bounds.Max.X; px++ {
+			c := src.At(px, py)
+
+			if _, ok := c.(color.Alpha); ok {
+				alpha := c.(color.Alpha).A
+				if alpha < 128 {
+					continue
+				}
+			}
+
+			gray, ok := color.GrayModel.Convert(c).(color.Gray)
+			if !ok {
+				continue
+			}
+
+			if gray.Y > 128 {
+				dst.SetGray(x+px-bounds.Min.X, y+py-bounds.Min.Y, white)
+			}
+		}
+	}
+
+	return nil
+}
+
 func circle(img *image.Gray, x, y, r int, start, end float64, c color.Gray) {
-	start += 0.01 // prevent drawing a rogue pixel
-	for o := start; o < end; o += 0.04 {
+	adjustedStart := start + 0.01 // prevent drawing a rogue pixel
+	for o := adjustedStart; o < end; o += 0.04 {
 		px := x + int(float64(r)*math.Cos(o))
 		py := y + int(float64(r)*math.Sin(o))
 		img.SetGray(px, py, c)
@@ -88,8 +128,8 @@ func horizontalLine(img *image.Gray, y, x1, x2 int, c color.Gray) {
 		p2 = x1
 	}
 
-	for p := range p2 - p1 {
-		img.SetGray(p1+p, y, c)
+	for p := p1; p < p2; p++ {
+		img.SetGray(p, y, c)
 	}
 }
 
@@ -101,7 +141,7 @@ func verticalLine(img *image.Gray, x, y1, y2 int, c color.Gray) {
 		p2 = y1
 	}
 
-	for p := range p2 - p1 {
-		img.SetGray(x, p1+p, c)
+	for p := p1; p < p2; p++ {
+		img.SetGray(x, p, c)
 	}
 }

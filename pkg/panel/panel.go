@@ -1,7 +1,9 @@
 package panel
 
 import (
+	"errors"
 	"image"
+	"sync"
 
 	"github.com/puzpuzpuz/xsync/v4"
 	"periph.io/x/conn/v3/i2c"
@@ -9,6 +11,7 @@ import (
 )
 
 type Panel struct {
+	mu          sync.Mutex
 	bus         i2c.Bus
 	multiplexer ChannelAware
 	displays    *xsync.Map[int, *ssd1306.Dev]
@@ -28,6 +31,9 @@ func New(optionFuncs ...OptionFunc) (*Panel, error) {
 }
 
 func (p *Panel) DisplayAdd(channel int) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	err := p.multiplexer.SetChannel(channel)
 	if err != nil {
 		return err
@@ -44,24 +50,32 @@ func (p *Panel) DisplayAdd(channel int) error {
 }
 
 func (p *Panel) DisplayWrite(channel int, data []byte) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	err := p.multiplexer.SetChannel(channel)
 	if err != nil {
 		return err
 	}
 
-	d, _ := p.displays.Load(channel)
-	_, err = d.Write(data)
+	if d, ok := p.displays.Load(channel); ok {
+		_, err = d.Write(data)
+	}
 
 	return err
 }
 
 func (p *Panel) DisplayDraw(channel int, img image.Image) error {
-	err := p.multiplexer.SetChannel(channel)
-	if err != nil {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if err := p.multiplexer.SetChannel(channel); err != nil {
 		return err
 	}
 
-	d, _ := p.displays.Load(channel)
+	if d, ok := p.displays.Load(channel); ok {
+		return d.Draw(img.Bounds(), img, image.Point{})
+	}
 
-	return d.Draw(img.Bounds(), img, image.Point{})
+	return errors.New("display not found")
 }
