@@ -38,10 +38,10 @@ func Rectangle(img *image.Gray, x, y, w, h int) {
 }
 
 func RectangleRoundedBorders(img *image.Gray, x, y, w, h, r int) {
-	horizontalLine(img, y, r, (x+w)-r-1, white)
-	horizontalLine(img, y+h-1, r, (x+w)-r-1, white)
-	verticalLine(img, x, y+r, (y+h)-r-1, white)
-	verticalLine(img, x+w-1, y+r, (y+h)-r-1, white)
+	horizontalLine(img, y, x+r, (x+w)-r, white)
+	horizontalLine(img, y+h-1, +1+r, (x+w)-r, white)
+	verticalLine(img, x, y+r, (y+h)-r, white)
+	verticalLine(img, x+w-1, y+r, (y+h)-r, white)
 
 	quater := math.Pi / 2
 	circle(img, (x+r)-1, y+r-1, r, quater*2, quater*3, white)
