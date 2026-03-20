@@ -39,7 +39,7 @@ func (p *Panel) DisplayAdd(channel int) error {
 		return err
 	}
 
-	dev, err := ssd1306.NewI2C(p.bus, &ssd1306.Opts{W: 128, H: 64, Rotated: true})
+	dev, err := ssd1306.NewI2C(p.bus, &ssd1306.Opts{W: 128, H: 64, Rotated: false})
 	if err != nil {
 		return err
 	}
