@@ -12,6 +12,7 @@ const (
 
 	defaultMode          = modeDevelopment
 	defaultLogLevel      = "INFO"
+	defaultSpritePath    = "./assets/sprites"
 	defaultMessageBusURL = "amqp://guest:guest@localhost:5672"
 	defaultRoutingKey    = "health.ping"
 	defaultExchange      = "health"
@@ -21,6 +22,7 @@ const (
 type Environment struct {
 	Mode                 string     `mapstructure:"MODE"`
 	LogLevel             slog.Level `mapstructure:"LOG_LEVEL"`
+	SpritePath           string     `mapstructure:"SPRITE_PATH"`
 	MessagebusURL        string     `mapstructure:"MESSAGE_BUS_URL"`
 	MessageBusExchange   string     `mapstructure:"MESSAGE_BUS_EXCHANGE"`
 	MessageBusRoutingKey string     `mapstructure:"MESSAGE_BUS_ROUTING_KEY"`
@@ -33,16 +35,19 @@ func initLog(level slog.Level) {
 		os.Exit(1)
 	}
 
-	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level})).
+	slog.SetDefault(slog.
+		New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level})).
 		With(
 			slog.String("hostname", hostname),
-		))
+		),
+	)
 }
 
 func loadEnv() Environment {
 	e, err := env.Load[Environment](map[string]any{
 		"MODE":                    defaultMode,
 		"LOG_LEVEL":               defaultLogLevel,
+		"SPRITE_PATH":             defaultSpritePath,
 		"MESSAGE_BUS_URL":         defaultMessageBusURL,
 		"MESSAGE_BUS_EXCHANGE":    defaultExchange,
 		"MESSAGE_BUS_ROUTING_KEY": defaultRoutingKey,

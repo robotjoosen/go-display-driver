@@ -1,6 +1,8 @@
 package character
 
+import "github.com/robotjoosen/go-display-driver/pkg/sprite"
+
 type CharacterData struct {
 	ID         string
-	Character  string
+	Character  sprite.SpriteType
 }

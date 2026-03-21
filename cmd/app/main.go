@@ -12,6 +12,7 @@ import (
 	"github.com/robotjoosen/go-display-driver/pkg/panel"
 	"github.com/robotjoosen/go-display-driver/pkg/screens"
 	"github.com/robotjoosen/go-display-driver/pkg/screens/device"
+	"github.com/robotjoosen/go-display-driver/pkg/sprite"
 	"github.com/robotjoosen/go-display-driver/pkg/tca9548"
 	"github.com/robotjoosen/go-rabbit"
 	"github.com/wagslane/go-rabbitmq"
@@ -88,6 +89,14 @@ func main() {
 	initLog(e.LogLevel)
 
 	p := initializePanel()
+
+	if err := sprite.LoadAll(e.SpritePath); err != nil {
+		slog.Warn("failed to load sprites",
+			slog.String("path", e.SpritePath),
+			slog.String("err", err.Error()),
+		)
+	}
+	sprite.StartFileWatcher(30*time.Second, e.SpritePath)
 
 	screens.Register(screens.ScreenDeviceStatus, device.New(device.DeviceStatusData{}))
 

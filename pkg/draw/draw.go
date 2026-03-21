@@ -3,11 +3,10 @@ package draw
 import (
 	"image"
 	"image/color"
-	"image/png"
 	"log/slog"
 	"math"
-	"os"
 
+	"github.com/robotjoosen/go-display-driver/pkg/sprite"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/basicfont"
 	"golang.org/x/image/math/fixed"
@@ -61,22 +60,16 @@ func Text(img *image.Gray, x, y, w, h int, text string) {
 	d.DrawString(text)
 }
 
-func PNG(dst *image.Gray, x, y int, filepath string) error {
-	file, err := os.Open(filepath)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	src, err := png.Decode(file)
-	if err != nil {
-		return err
+func Sprite(dst *image.Gray, x, y int, spriteType sprite.SpriteType) error {
+	img, ok := sprite.Get(spriteType)
+	if !ok {
+		return ErrSpriteNotFound
 	}
 
-	bounds := src.Bounds()
+	bounds := img.Bounds()
 	for py := bounds.Min.Y; py < bounds.Max.Y; py++ {
 		for px := bounds.Min.X; px < bounds.Max.X; px++ {
-			c := src.At(px, py)
+			c := img.At(px, py)
 
 			if _, ok := c.(color.Alpha); ok {
 				alpha := c.(color.Alpha).A

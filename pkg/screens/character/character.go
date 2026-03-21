@@ -20,7 +20,7 @@ func (s *character) Render(data any) image.Image {
 	img := image.NewGray(image.Rect(0, 0, 128, 64))
 
 	draw.Text(img, 10, 10, 100, 13, "UI Character")
-	draw.PNG(img, 10, 30, s.data.Character)
+	draw.Sprite(img, 10, 30, s.data.Character)
 
 	return img
 }
