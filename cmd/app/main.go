@@ -10,8 +10,9 @@ import (
 	"time"
 
 	"github.com/robotjoosen/go-display-driver/pkg/panel"
+	"github.com/robotjoosen/go-display-driver/pkg/screens"
+	"github.com/robotjoosen/go-display-driver/pkg/screens/device"
 	"github.com/robotjoosen/go-display-driver/pkg/tca9548"
-	"github.com/robotjoosen/go-display-driver/pkg/ui"
 	"github.com/robotjoosen/go-rabbit"
 	"github.com/wagslane/go-rabbitmq"
 	"periph.io/x/conn/v3/i2c/i2creg"
@@ -87,16 +88,8 @@ func main() {
 	initLog(e.LogLevel)
 
 	p := initializePanel()
-	for _, dev := range devices {
-		p.DisplayDraw(dev.display, ui.Generate(
-			"loading",
-			dev.online,
-			dev.cpu,
-			dev.memory,
-			dev.networkRx,
-			dev.networkTx,
-		))
-	}
+
+	screens.Register(screens.ScreenDeviceStatus, device.New(device.DeviceStatusData{}))
 
 	conn := connectMessageBus(e.MessagebusURL)
 	c, err := rabbit.NewConsumer(conn,
@@ -109,14 +102,15 @@ func main() {
 	}
 
 	for _, dev := range devices {
-		p.DisplayDraw(dev.display, ui.Generate(
-			"ready",
-			dev.online,
-			dev.cpu,
-			dev.memory,
-			dev.networkRx,
-			dev.networkTx,
-		))
+		screen, _ := screens.Get(screens.ScreenDeviceStatus)
+		p.DisplayDraw(dev.display, screen.Render(device.DeviceStatusData{
+			ID:        dev.name,
+			Online:    dev.online,
+			CPU:       dev.cpu,
+			Memory:    dev.memory,
+			NetworkRx: dev.networkRx,
+			NetworkTx: dev.networkTx,
+		}))
 	}
 
 	if err = c.Run(handleSysStatus(p)); err != nil {
@@ -238,14 +232,15 @@ func handleSysStatus(p *panel.Panel) func(d rabbitmq.Delivery) (action rabbitmq.
 		}
 		devices[msg.Name] = dev
 
-		p.DisplayDraw(dev.display, ui.Generate(
-			dev.name,
-			dev.online,
-			dev.cpu,
-			dev.memory,
-			dev.networkRx,
-			dev.networkTx,
-		))
+		screen, _ := screens.Get(screens.ScreenDeviceStatus)
+		p.DisplayDraw(dev.display, screen.Render(device.DeviceStatusData{
+			ID:        dev.name,
+			Online:    dev.online,
+			CPU:       dev.cpu,
+			Memory:    dev.memory,
+			NetworkRx: dev.networkRx,
+			NetworkTx: dev.networkTx,
+		}))
 
 		return rabbitmq.Ack
 	}
