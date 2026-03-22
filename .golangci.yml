@@ -1,0 +1,33 @@
+run:
+  timeout: 5m
+
+linters:
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gofmt
+    - goimports
+    - misspell
+    - unconvert
+    - unparam
+    - interfacer
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+  govet:
+    enable-all: true
+  gofmt:
+    simplify: true
+  goimports:
+    local-prefixes: github.com/robotjoosen/go-display-driver
+
+issues:
+  exclude-use-default: false
+  max-issues-per-linter: 50
+  max-same-issues: 10

@@ -1,4 +1,4 @@
-package screens
+package display
 
 import "github.com/puzpuzpuz/xsync/v4"
 

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"net"
@@ -9,86 +8,42 @@ import (
 	"os"
 	"time"
 
+	"github.com/robotjoosen/go-display-driver/pkg/device"
+	"github.com/robotjoosen/go-display-driver/pkg/discover"
+	"github.com/robotjoosen/go-display-driver/pkg/display"
+	_ "github.com/robotjoosen/go-display-driver/pkg/display/screen"
+	startupScreen "github.com/robotjoosen/go-display-driver/pkg/display/screen/startup"
 	"github.com/robotjoosen/go-display-driver/pkg/panel"
-	"github.com/robotjoosen/go-display-driver/pkg/screens"
-	"github.com/robotjoosen/go-display-driver/pkg/screens/device"
 	"github.com/robotjoosen/go-display-driver/pkg/sprite"
 	"github.com/robotjoosen/go-display-driver/pkg/tca9548"
 	"github.com/robotjoosen/go-rabbit"
 	"github.com/wagslane/go-rabbitmq"
+	"periph.io/x/conn/v3/i2c"
 	"periph.io/x/conn/v3/i2c/i2creg"
 	"periph.io/x/host/v3"
 )
 
-type SysUsageMessage struct {
-	Name string           `json:"name"`
-	Mem  MemoryMessage    `json:"memory"`
-	Cpu  CPUMessage       `json:"cpu"`
-	Nic  []NetworkMessage `json:"network_interfaces"`
-	Dsk  []DiskMessage    `json:"disks"`
-}
-
-type MemoryMessage struct {
-	Free  uint64 `json:"free"`
-	Used  uint64 `json:"used"`
-	Total uint64 `json:"total"`
-}
-
-type CPUMessage struct {
-	System float64 `json:"system"`
-	Idle   float64 `json:"idle"`
-	User   float64 `json:"user"`
-}
-
-type NetworkMessage struct {
-	Name string `json:"name"`
-	Rx   uint64 `json:"rx_bytes"`
-	Tx   uint64 `json:"tx_bytes"`
-}
-
-type DiskMessage struct {
-	Name   string `json:"name"`
-	Reads  uint64 `json:"reads"`
-	Writes uint64 `json:"writes"`
-}
-
 const (
-	displayCount = 3
-	maxRetries   = 100
-)
-
-var (
-	devices = map[string]struct {
-		hostname  string
-		name      string
-		display   int
-		online    bool
-		memory    uint64
-		cpu       float64
-		disk      float64
-		networkRx uint64
-		networkTx uint64
-	}{
-		"rocket": {
-			name:    "rocket.local",
-			display: 0,
-		},
-		"beanie": {
-			name:    "beanie.local",
-			display: 1,
-		},
-		"orangepizerolts": {
-			name:    "socks.local",
-			display: 2,
-		},
-	}
+	maxRetries = 100
 )
 
 func main() {
 	e := loadEnv()
 	initLog(e.LogLevel)
 
-	p := initializePanel()
+	bus, tcaMux := initializeBus()
+	displayList := discover.Displays(bus, tcaMux)
+
+	if len(displayList) == 0 {
+		slog.Error("no displays detected")
+		os.Exit(1)
+	}
+
+	slog.Info("detected displays",
+		slog.Any("displays", displayList),
+	)
+
+	p := initializePanel(bus, tcaMux, displayList)
 
 	if err := sprite.LoadAll(e.SpritePath); err != nil {
 		slog.Warn("failed to load sprites",
@@ -98,10 +53,16 @@ func main() {
 	}
 	sprite.StartFileWatcher(30*time.Second, e.SpritePath)
 
-	screens.Register(screens.ScreenDeviceStatus, device.New(device.DeviceStatusData{}))
+	sm := display.NewManager(displayList, display.NewPanelAdapter(p))
+
+	for _, d := range displayList {
+		sm.SetScreen(d, display.ScreenStartup, startupScreen.StartupData{})
+		sm.Input(display.RefreshEvent{Display: d})
+	}
 
 	conn := connectMessageBus(e.MessagebusURL)
-	c, err := rabbit.NewConsumer(conn,
+
+	cStatus, err := rabbit.NewConsumer(conn,
 		e.MessageBusExchange,
 		[]string{e.MessageBusRoutingKey},
 		e.MessageBusQueueName,
@@ -110,26 +71,31 @@ func main() {
 		panic(err)
 	}
 
-	for _, dev := range devices {
-		screen, _ := screens.Get(screens.ScreenDeviceStatus)
-		p.DisplayDraw(dev.display, screen.Render(device.DeviceStatusData{
-			ID:        dev.name,
-			Online:    dev.online,
-			CPU:       dev.cpu,
-			Memory:    dev.memory,
-			NetworkRx: dev.networkRx,
-			NetworkTx: dev.networkTx,
-		}))
-	}
-
-	if err = c.Run(handleSysStatus(p)); err != nil {
+	cKeyboard, err := rabbit.NewConsumer(conn,
+		e.KeyboardExchange,
+		[]string{e.KeyboardRoutingKey},
+		e.KeyboardQueueName,
+	)
+	if err != nil {
 		panic(err)
 	}
+
+	go func() {
+		if err = cStatus.Run(device.HandleMessage); err != nil {
+			panic(err)
+		}
+	}()
+
+	go func() {
+		if err = cKeyboard.Run(display.HandleControlInstructions(sm)); err != nil {
+			panic(err)
+		}
+	}()
 
 	<-make(chan bool)
 }
 
-func initializePanel() *panel.Panel {
+func initializeBus() (i2c.Bus, *tca9548.TCA9548) {
 	if _, err := host.Init(); err != nil {
 		slog.Error("failed to initialize host",
 			slog.String("err", err.Error()),
@@ -145,16 +111,20 @@ func initializePanel() *panel.Panel {
 		os.Exit(1)
 	}
 
-	tca9548 := tca9548.New(bus)
-	if tca9548 == nil {
+	tcaMux := tca9548.New(bus)
+	if tcaMux == nil {
 		slog.Error("failed to initialize multiplexer")
 
 		os.Exit(1)
 	}
 
+	return bus, tcaMux
+}
+
+func initializePanel(bus i2c.Bus, tcaMux *tca9548.TCA9548, displayList []int) *panel.Panel {
 	p, err := panel.New(
 		panel.WithI2CBus(bus),
-		panel.WithMultiplexer(tca9548),
+		panel.WithMultiplexer(tcaMux),
 	)
 	if err != nil {
 		slog.Error("failed to initialize panel",
@@ -164,9 +134,10 @@ func initializePanel() *panel.Panel {
 		os.Exit(1)
 	}
 
-	for i := range displayCount {
-		if err := p.DisplayAdd(i); err != nil {
-			slog.Error("failed to configure displays",
+	for _, d := range displayList {
+		if err := p.DisplayAdd(d); err != nil {
+			slog.Error("failed to configure display",
+				slog.Int("display", d),
 				slog.String("err", err.Error()),
 			)
 
@@ -206,51 +177,4 @@ func connectMessageBus(u string) *rabbitmq.Conn {
 	}
 
 	return conn
-}
-
-func handleSysStatus(p *panel.Panel) func(d rabbitmq.Delivery) (action rabbitmq.Action) {
-	return func(d rabbitmq.Delivery) (action rabbitmq.Action) {
-		dLog := slog.With(
-			slog.String("message_id", d.MessageId),
-			slog.String("correlation_id", d.CorrelationId),
-			slog.String("routing_key", d.RoutingKey),
-		)
-
-		var msg SysUsageMessage
-		if err := json.Unmarshal(d.Body, &msg); err != nil {
-			dLog.Error("failed to unmarshal message")
-
-			return rabbitmq.NackDiscard
-		}
-
-		dev, ok := devices[msg.Name]
-		if !ok {
-			dLog.Warn("unknown device", slog.String("hostname", msg.Name))
-
-			return rabbitmq.NackDiscard
-		}
-
-		dev.online = true
-		dev.cpu = msg.Cpu.Idle
-		dev.memory = msg.Mem.Free
-		for _, nic := range msg.Nic {
-			if nic.Name == "eth0" {
-				dev.networkRx = nic.Rx
-				dev.networkTx = nic.Tx
-			}
-		}
-		devices[msg.Name] = dev
-
-		screen, _ := screens.Get(screens.ScreenDeviceStatus)
-		p.DisplayDraw(dev.display, screen.Render(device.DeviceStatusData{
-			ID:        dev.name,
-			Online:    dev.online,
-			CPU:       dev.cpu,
-			Memory:    dev.memory,
-			NetworkRx: dev.networkRx,
-			NetworkTx: dev.networkTx,
-		}))
-
-		return rabbitmq.Ack
-	}
 }

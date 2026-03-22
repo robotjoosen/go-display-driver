@@ -2,7 +2,6 @@ package tca9548
 
 import (
 	"errors"
-	"fmt"
 	"log/slog"
 
 	"periph.io/x/conn/v3/i2c"
@@ -39,8 +38,6 @@ func (t *TCA9548) SetChannel(i int) error {
 	if i >= len(t.channels) {
 		return errors.New("invalid channel")
 	}
-
-	fmt.Printf("setting channel: %d : %d\n", i, t.channels[i])
 
 	if err := t.bus.Tx(t.address, []byte{t.channels[i]}, make([]byte, 0)); err != nil {
 		slog.Error("failed setting bus",
