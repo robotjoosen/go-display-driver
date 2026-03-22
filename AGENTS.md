@@ -176,6 +176,10 @@ GetDevice(id string) any
 SetListLength(display int, length int)
 SetListIndex(display int, index int)
 
+// State persistence (reboot recovery)
+LoadState() error  // loads persisted state from ~/.config/go-display-driver/state.json
+SaveState() error  // saves current state
+
 // Lifecycle
 Close()  // stops eventLoop goroutine
 ```
@@ -239,3 +243,22 @@ var ScreenTypeCycleOrder = []ScreenType{
 - **Displays and devices are independent** - screen fetches device data on render
 - **Screens filter devices** - each screen determines which devices it can display
 - **eventLoop runs in separate goroutine** - always call `Close()` before shutdown
+
+## State Persistence
+
+On reboot, the following state is restored from `~/.config/go-display-driver/state.json`:
+
+| State | Description |
+|-------|-------------|
+| `selectedIndex` | Which physical display (0, 1, 2) is selected |
+| `displays[d].ScreenType` | What screen type each display is showing |
+| `displays[d].ListIndex` | Navigation position per display |
+
+**NOT persisted** (ephemeral):
+- `ListLength` - reconstructed when screen loads
+- `Data` - ephemeral device/network data
+
+**Auto-save behavior**:
+- State is marked dirty on any navigation/display change
+- Saves are debounced: 5s after last change, or every 30s if dirty
+- Final save occurs on `Close()`

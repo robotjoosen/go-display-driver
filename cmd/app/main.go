@@ -11,8 +11,7 @@ import (
 	"github.com/robotjoosen/go-display-driver/pkg/device"
 	"github.com/robotjoosen/go-display-driver/pkg/discover"
 	"github.com/robotjoosen/go-display-driver/pkg/display"
-	_ "github.com/robotjoosen/go-display-driver/pkg/display/screen"
-	startupScreen "github.com/robotjoosen/go-display-driver/pkg/display/screen/startup"
+	"github.com/robotjoosen/go-display-driver/pkg/display/screen/startup"
 	"github.com/robotjoosen/go-display-driver/pkg/panel"
 	"github.com/robotjoosen/go-display-driver/pkg/sprite"
 	"github.com/robotjoosen/go-display-driver/pkg/tca9548"
@@ -56,41 +55,37 @@ func main() {
 	sm := display.NewManager(displayList, display.NewPanelAdapter(p))
 
 	for _, d := range displayList {
-		sm.SetScreen(d, display.ScreenStartup, startupScreen.StartupData{})
+		sm.SetScreen(d, display.ScreenStartup, startup.StartupData{})
+		sm.Input(display.RefreshEvent{Display: d})
+	}
+
+	if err := sm.LoadState(); err != nil {
+		slog.Warn("failed to load persisted state",
+			slog.String("err", err.Error()),
+		)
+	}
+
+	for _, d := range displayList {
 		sm.Input(display.RefreshEvent{Display: d})
 	}
 
 	conn := connectMessageBus(e.MessagebusURL)
 
-	cStatus, err := rabbit.NewConsumer(conn,
+	if c, err := rabbit.NewConsumer(conn,
 		e.MessageBusExchange,
 		[]string{e.MessageBusRoutingKey},
 		e.MessageBusQueueName,
-	)
-	if err != nil {
-		panic(err)
+	); err != nil {
+		go c.Run(device.HandleMessage)
 	}
 
-	cKeyboard, err := rabbit.NewConsumer(conn,
+	if c, err := rabbit.NewConsumer(conn,
 		e.KeyboardExchange,
 		[]string{e.KeyboardRoutingKey},
 		e.KeyboardQueueName,
-	)
-	if err != nil {
-		panic(err)
+	); err != nil {
+		go c.Run(display.HandleControlInstructions(sm))
 	}
-
-	go func() {
-		if err = cStatus.Run(device.HandleMessage); err != nil {
-			panic(err)
-		}
-	}()
-
-	go func() {
-		if err = cKeyboard.Run(display.HandleControlInstructions(sm)); err != nil {
-			panic(err)
-		}
-	}()
 
 	<-make(chan bool)
 }

@@ -5,6 +5,13 @@ import (
 	"log/slog"
 	"sync"
 	"time"
+
+	"github.com/robotjoosen/go-display-driver/pkg/state"
+)
+
+const (
+	stateDebounceDelay = 5 * time.Second
+	statePersistPeriod = 30 * time.Second
 )
 
 type Event interface {
@@ -51,6 +58,9 @@ type Manager struct {
 	keyRepeatMs     int
 	refreshInterval time.Duration
 	stopChan        chan struct{}
+	stateTimer      *time.Timer
+	statePersist    time.Time
+	stateDirty      bool
 }
 
 type DisplayState struct {
@@ -95,13 +105,18 @@ func (m *Manager) Input(e Event) {
 func (m *Manager) eventLoop() {
 	ticker := time.NewTicker(m.refreshInterval)
 	defer ticker.Stop()
+	stateTicker := time.NewTicker(statePersistPeriod)
+	defer stateTicker.Stop()
 	for {
 		select {
 		case e := <-m.eventQueue:
 			m.handle(e)
 		case <-ticker.C:
 			m.refreshAll()
+		case <-stateTicker.C:
+			m.persistStateIfDirty()
 		case <-m.stopChan:
+			m.saveState()
 			return
 		}
 	}
@@ -225,6 +240,7 @@ func (m *Manager) selectNext() {
 		return
 	}
 	m.selectedIndex = (m.selectedIndex + 1) % len(m.displayList)
+	m.markStateDirty()
 }
 
 func (m *Manager) selectPrev() {
@@ -234,6 +250,7 @@ func (m *Manager) selectPrev() {
 		return
 	}
 	m.selectedIndex = (m.selectedIndex - 1 + len(m.displayList)) % len(m.displayList)
+	m.markStateDirty()
 }
 
 func (m *Manager) cycleScreenType(display int) {
@@ -262,6 +279,7 @@ func (m *Manager) cycleScreenType(display int) {
 		"nextIdx", nextIdx,
 		"nextScreen", ScreenTypeCycleOrder[nextIdx],
 	)
+	m.markStateDirty()
 }
 
 func (m *Manager) SetScreen(display int, screenType ScreenType, data any) {
@@ -273,6 +291,7 @@ func (m *Manager) SetScreen(display int, screenType ScreenType, data any) {
 	state.ListIndex = 0
 	state.ListLength = 0
 	m.displays[display] = state
+	m.markStateDirty()
 }
 
 func (m *Manager) SetListLength(display int, length int) {
@@ -291,6 +310,7 @@ func (m *Manager) SetListIndex(display int, index int) {
 		state.ListIndex = index % state.ListLength
 	}
 	m.displays[display] = state
+	m.markStateDirty()
 }
 
 func (m *Manager) listUp(display int) {
@@ -302,6 +322,7 @@ func (m *Manager) listUp(display int) {
 	}
 	state.ListIndex = (state.ListIndex - 1 + state.ListLength) % state.ListLength
 	m.displays[display] = state
+	m.markStateDirty()
 }
 
 func (m *Manager) listDown(display int) {
@@ -313,6 +334,7 @@ func (m *Manager) listDown(display int) {
 	}
 	state.ListIndex = (state.ListIndex + 1) % state.ListLength
 	m.displays[display] = state
+	m.markStateDirty()
 }
 
 func (m *Manager) GetState(display int) (DisplayState, bool) {
@@ -368,4 +390,79 @@ func (m *Manager) render(display int) {
 	}
 
 	m.panel.DisplayDraw(display, screen.Render(display, m))
+}
+
+func (m *Manager) LoadState() error {
+	s, err := state.Load()
+	if err != nil {
+		return err
+	}
+	if s == nil {
+		return nil
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if s.SelectedIndex >= 0 && s.SelectedIndex < len(m.displayList) {
+		m.selectedIndex = s.SelectedIndex
+	}
+
+	for displayID, snapshot := range s.Displays {
+		if ds, ok := m.displays[displayID]; ok {
+			ds.ScreenType = ScreenType(snapshot.ScreenType)
+			ds.ListIndex = snapshot.ListIndex
+			m.displays[displayID] = ds
+		}
+	}
+
+	return nil
+}
+
+func (m *Manager) SaveState() error {
+	m.mu.RLock()
+	s := &state.State{
+		SelectedIndex: m.selectedIndex,
+		Displays:      make(map[int]state.DisplaySnapshot),
+	}
+	for displayID, ds := range m.displays {
+		s.Displays[displayID] = state.DisplaySnapshot{
+			ScreenType: string(ds.ScreenType),
+			ListIndex:  ds.ListIndex,
+		}
+	}
+	m.mu.RUnlock()
+
+	return state.Save(s)
+}
+
+func (m *Manager) saveState() {
+	if err := m.SaveState(); err != nil {
+		slog.Error("failed to save state", "err", err)
+	}
+}
+
+func (m *Manager) persistStateIfDirty() {
+	m.mu.Lock()
+	dirty := m.stateDirty
+	m.mu.Unlock()
+
+	if dirty {
+		m.saveState()
+		m.mu.Lock()
+		m.stateDirty = false
+		m.mu.Unlock()
+	}
+}
+
+func (m *Manager) markStateDirty() {
+	m.mu.Lock()
+	m.stateDirty = true
+	if m.stateTimer != nil {
+		m.stateTimer.Stop()
+	}
+	m.stateTimer = time.AfterFunc(stateDebounceDelay, func() {
+		m.persistStateIfDirty()
+	})
+	m.mu.Unlock()
 }
