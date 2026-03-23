@@ -246,7 +246,7 @@ var ScreenTypeCycleOrder = []ScreenType{
 
 ## State Persistence
 
-On reboot, the following state is restored from `~/.config/go-display-driver/state.json`:
+On reboot, the following state is restored. The storage path can be configured via `STATE_PATH` environment variable (defaults to `~/.config/go-display-driver/state.json`):
 
 | State | Description |
 |-------|-------------|

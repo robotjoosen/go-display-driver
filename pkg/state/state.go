@@ -16,20 +16,7 @@ type State struct {
 	Displays      map[int]DisplaySnapshot `json:"displays"`
 }
 
-func getStatePath() (string, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(homeDir, ".config", "go-display-driver", "state.json"), nil
-}
-
-func Load() (*State, error) {
-	path, err := getStatePath()
-	if err != nil {
-		return nil, err
-	}
-
+func Load(path string) (*State, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -46,12 +33,7 @@ func Load() (*State, error) {
 	return &s, nil
 }
 
-func Save(s *State) error {
-	path, err := getStatePath()
-	if err != nil {
-		return err
-	}
-
+func Save(s *State, path string) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err

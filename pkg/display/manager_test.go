@@ -29,7 +29,7 @@ func (s *simpleScreen) Render(display int, m *Manager) image.Image {
 
 func TestNewManager(t *testing.T) {
 	p := &mockPanel{}
-	m := NewManager([]int{0, 1}, p)
+	m := NewManager([]int{0, 1}, p, "")
 
 	if len(m.DisplayList()) != 2 {
 		t.Errorf("expected 2 displays, got %d", len(m.DisplayList()))
@@ -46,7 +46,7 @@ func TestNewManager(t *testing.T) {
 
 func TestSelectNextDisplay(t *testing.T) {
 	p := &mockPanel{}
-	m := NewManager([]int{0, 1}, p)
+	m := NewManager([]int{0, 1}, p, "")
 
 	m.Input(NextDisplayEvent{})
 
@@ -60,7 +60,7 @@ func TestSelectNextDisplay(t *testing.T) {
 
 func TestSelectNextWrap(t *testing.T) {
 	p := &mockPanel{}
-	m := NewManager([]int{0, 1}, p)
+	m := NewManager([]int{0, 1}, p, "")
 
 	m.Input(NextDisplayEvent{})
 	m.Input(NextDisplayEvent{})
@@ -71,7 +71,7 @@ func TestSelectNextWrap(t *testing.T) {
 
 func TestCycleScreenType(t *testing.T) {
 	p := &mockPanel{}
-	m := NewManager([]int{0, 1}, p)
+	m := NewManager([]int{0, 1}, p, "")
 
 	m.SetScreen(0, ScreenDeviceStatus, nil)
 	m.Input(ControlEvent{KeyID: KeyCycleScreen, Action: "PRESS"})
@@ -86,7 +86,7 @@ func TestCycleScreenType(t *testing.T) {
 
 func TestListNavigation(t *testing.T) {
 	p := &mockPanel{}
-	m := NewManager([]int{0}, p)
+	m := NewManager([]int{0}, p, "")
 
 	m.SetScreen(0, ScreenDeviceStatus, nil)
 	m.SetListLength(0, 5)
@@ -113,7 +113,7 @@ func TestRefreshEvent(t *testing.T) {
 	Register(ScreenDeviceStatus, &simpleScreen{})
 
 	p := &mockPanel{}
-	m := NewManager([]int{0}, p)
+	m := NewManager([]int{0}, p, "")
 	m.SetScreen(0, ScreenDeviceStatus, nil)
 
 	m.Input(RefreshEvent{Display: 0})
@@ -126,7 +126,7 @@ func TestRefreshEvent(t *testing.T) {
 
 func TestClose(t *testing.T) {
 	p := &mockPanel{}
-	m := NewManager([]int{0}, p)
+	m := NewManager([]int{0}, p, "")
 
 	m.Close()
 
@@ -136,7 +136,7 @@ func TestClose(t *testing.T) {
 
 func TestControlEventKeyDown(t *testing.T) {
 	p := &mockPanel{}
-	m := NewManager([]int{0, 1}, p)
+	m := NewManager([]int{0, 1}, p, "")
 
 	m.Input(ControlEvent{KeyID: KeyCycleDisplay, Action: "PRESS"})
 	time.Sleep(10 * time.Millisecond)
@@ -156,7 +156,7 @@ func (s *transitionHandlerScreen) HandleSelect(display int, m *Manager) {
 
 func TestSelectKey(t *testing.T) {
 	p := &mockPanel{}
-	m := NewManager([]int{0}, p)
+	m := NewManager([]int{0}, p, "")
 	m.SetScreen(0, ScreenDeviceStatus, nil)
 
 	m.Input(ControlEvent{KeyID: KeySelect, Action: "PRESS"})
@@ -165,7 +165,7 @@ func TestSelectKey(t *testing.T) {
 
 func TestControlEventRelease(t *testing.T) {
 	p := &mockPanel{}
-	m := NewManager([]int{0}, p)
+	m := NewManager([]int{0}, p, "")
 
 	m.Input(ControlEvent{KeyID: KeyCycleDisplay, Action: ActionRelease})
 	time.Sleep(10 * time.Millisecond)
@@ -173,7 +173,7 @@ func TestControlEventRelease(t *testing.T) {
 
 func TestSelectEvent(t *testing.T) {
 	p := &mockPanel{}
-	m := NewManager([]int{0}, p)
+	m := NewManager([]int{0}, p, "")
 	m.SetScreen(0, ScreenDeviceStatus, nil)
 
 	m.Input(SelectEvent{})
@@ -182,7 +182,7 @@ func TestSelectEvent(t *testing.T) {
 
 func TestListUpEvent(t *testing.T) {
 	p := &mockPanel{}
-	m := NewManager([]int{0}, p)
+	m := NewManager([]int{0}, p, "")
 	m.SetScreen(0, ScreenDeviceStatus, nil)
 	m.SetListLength(0, 5)
 	m.SetListIndex(0, 2)
@@ -198,7 +198,7 @@ func TestListUpEvent(t *testing.T) {
 
 func TestListDownEvent(t *testing.T) {
 	p := &mockPanel{}
-	m := NewManager([]int{0}, p)
+	m := NewManager([]int{0}, p, "")
 	m.SetScreen(0, ScreenDeviceStatus, nil)
 	m.SetListLength(0, 5)
 	m.SetListIndex(0, 2)
@@ -214,7 +214,7 @@ func TestListDownEvent(t *testing.T) {
 
 func TestPrevDisplayEvent(t *testing.T) {
 	p := &mockPanel{}
-	m := NewManager([]int{0, 1}, p)
+	m := NewManager([]int{0, 1}, p, "")
 
 	m.Input(NextDisplayEvent{})
 	m.Input(PrevDisplayEvent{})
@@ -225,7 +225,7 @@ func TestQueueRefreshDebounce(t *testing.T) {
 	Register(ScreenDeviceStatus, &simpleScreen{})
 
 	p := &mockPanel{}
-	m := NewManager([]int{0}, p)
+	m := NewManager([]int{0}, p, "")
 	m.SetScreen(0, ScreenDeviceStatus, nil)
 
 	m.Input(RefreshEvent{Display: 0})
@@ -240,7 +240,7 @@ func TestQueueRefreshDebounce(t *testing.T) {
 
 func TestSetListIndexBounds(t *testing.T) {
 	p := &mockPanel{}
-	m := NewManager([]int{0}, p)
+	m := NewManager([]int{0}, p, "")
 	m.SetScreen(0, ScreenDeviceStatus, nil)
 	m.SetListLength(0, 3)
 
@@ -253,7 +253,7 @@ func TestSetListIndexBounds(t *testing.T) {
 
 func TestGetState(t *testing.T) {
 	p := &mockPanel{}
-	m := NewManager([]int{0}, p)
+	m := NewManager([]int{0}, p, "")
 
 	_, ok := m.GetState(999)
 	if ok {
@@ -263,7 +263,7 @@ func TestGetState(t *testing.T) {
 
 func TestDisplayDrawError(t *testing.T) {
 	p := &mockPanel{}
-	m := NewManager([]int{0}, p)
+	m := NewManager([]int{0}, p, "")
 	m.SetScreen(0, ScreenDeviceStatus, nil)
 
 	img := image.NewGray(image.Rect(0, 0, 128, 64))

@@ -58,6 +58,7 @@ type Manager struct {
 	keyRepeatMs     int
 	refreshInterval time.Duration
 	stopChan        chan struct{}
+	statePath       string
 	stateTimer      *time.Timer
 	statePersist    time.Time
 	stateDirty      bool
@@ -70,7 +71,7 @@ type DisplayState struct {
 	ListLength int
 }
 
-func NewManager(displays []int, p Panel) *Manager {
+func NewManager(displays []int, p Panel, statePath string) *Manager {
 	displayMap := make(map[int]DisplayState)
 	lastRenderMap := make(map[int]time.Time)
 	for _, d := range displays {
@@ -88,6 +89,7 @@ func NewManager(displays []int, p Panel) *Manager {
 		keyRepeatMs:     200,
 		refreshInterval: time.Duration(len(displays)) * 20 * time.Millisecond,
 		stopChan:        make(chan struct{}),
+		statePath:       statePath,
 	}
 
 	go m.eventLoop()
@@ -393,7 +395,7 @@ func (m *Manager) render(display int) {
 }
 
 func (m *Manager) LoadState() error {
-	s, err := state.Load()
+	s, err := state.Load(m.statePath)
 	if err != nil {
 		return err
 	}
@@ -433,7 +435,7 @@ func (m *Manager) SaveState() error {
 	}
 	m.mu.RUnlock()
 
-	return state.Save(s)
+	return state.Save(s, m.statePath)
 }
 
 func (m *Manager) saveState() {
@@ -456,7 +458,6 @@ func (m *Manager) persistStateIfDirty() {
 }
 
 func (m *Manager) markStateDirty() {
-	m.mu.Lock()
 	m.stateDirty = true
 	if m.stateTimer != nil {
 		m.stateTimer.Stop()
@@ -464,5 +465,4 @@ func (m *Manager) markStateDirty() {
 	m.stateTimer = time.AfterFunc(stateDebounceDelay, func() {
 		m.persistStateIfDirty()
 	})
-	m.mu.Unlock()
 }

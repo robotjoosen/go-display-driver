@@ -52,7 +52,7 @@ func main() {
 	}
 	sprite.StartFileWatcher(30*time.Second, e.SpritePath)
 
-	sm := display.NewManager(displayList, display.NewPanelAdapter(p))
+	sm := display.NewManager(displayList, display.NewPanelAdapter(p), e.StatePath)
 
 	for _, d := range displayList {
 		sm.SetScreen(d, display.ScreenStartup, startup.StartupData{})
@@ -71,21 +71,35 @@ func main() {
 
 	conn := connectMessageBus(e.MessagebusURL)
 
-	if c, err := rabbit.NewConsumer(conn,
+	cStatus, err := rabbit.NewConsumer(conn,
 		e.MessageBusExchange,
 		[]string{e.MessageBusRoutingKey},
 		e.MessageBusQueueName,
-	); err != nil {
-		go c.Run(device.HandleMessage)
+	)
+	if err != nil {
+		panic(err)
 	}
 
-	if c, err := rabbit.NewConsumer(conn,
+	cKeyboard, err := rabbit.NewConsumer(conn,
 		e.KeyboardExchange,
 		[]string{e.KeyboardRoutingKey},
 		e.KeyboardQueueName,
-	); err != nil {
-		go c.Run(display.HandleControlInstructions(sm))
+	)
+	if err != nil {
+		panic(err)
 	}
+
+	go func() {
+		if err = cStatus.Run(device.HandleMessage); err != nil {
+			panic(err)
+		}
+	}()
+
+	go func() {
+		if err = cKeyboard.Run(display.HandleControlInstructions(sm)); err != nil {
+			panic(err)
+		}
+	}()
 
 	<-make(chan bool)
 }
