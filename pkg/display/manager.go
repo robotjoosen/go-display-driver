@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/robotjoosen/go-display-driver/pkg/draw"
 	"github.com/robotjoosen/go-display-driver/pkg/state"
 )
 
@@ -227,6 +228,15 @@ func (m *Manager) selectedDisplay() int {
 	return m.displayList[m.selectedIndex]
 }
 
+func (m *Manager) isSelectedDisplay(display int) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if len(m.displayList) == 0 || m.selectedIndex < 0 || m.selectedIndex >= len(m.displayList) {
+		return false
+	}
+	return m.displayList[m.selectedIndex] == display
+}
+
 func (m *Manager) DisplayList() []int {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -391,7 +401,11 @@ func (m *Manager) render(display int) {
 		return
 	}
 
-	m.panel.DisplayDraw(display, screen.Render(display, m))
+	img := screen.Render(display, m)
+	if m.isSelectedDisplay(display) {
+		draw.Circle(img, 122, 6, 4)
+	}
+	m.panel.DisplayDraw(display, img)
 }
 
 func (m *Manager) LoadState() error {

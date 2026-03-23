@@ -28,8 +28,10 @@ func Line(img *image.Gray, x1, y1, x2, y2 int) {
 	}
 }
 
-func Circle(img *image.Gray, x, y, r int) {
-	circle(img, x, y, r, 0.0, math.Pi*2, white)
+func Circle(img image.Image, x, y, r int) {
+	if gray, ok := img.(*image.Gray); !ok {
+		circle(gray, x, y, r, 0.0, math.Pi*2, white)
+	}
 }
 
 func Rectangle(img *image.Gray, x, y, w, h int) {
