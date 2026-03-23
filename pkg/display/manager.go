@@ -2,9 +2,12 @@ package display
 
 import (
 	"fmt"
+	"image"
 	"log/slog"
 	"sync"
 	"time"
+
+	"github.com/robotjoosen/go-display-driver/pkg/draw"
 )
 
 type Event interface {
@@ -40,17 +43,18 @@ func (ListUpEvent) isEvent()      {}
 func (ListDownEvent) isEvent()    {}
 
 type Manager struct {
-	mu              sync.RWMutex
-	panel           Panel
-	displays        map[int]DisplayState
-	selectedIndex   int
-	displayList     []int
-	lastRender      map[int]time.Time
-	eventQueue      chan Event
-	keyState        map[int]string
-	keyRepeatMs     int
-	refreshInterval time.Duration
-	stopChan        chan struct{}
+	mu                  sync.RWMutex
+	panel               Panel
+	displays            map[int]DisplayState
+	selectedIndex       int
+	displayList         []int
+	lastRender          map[int]time.Time
+	eventQueue          chan Event
+	keyState            map[int]string
+	keyRepeatMs         int
+	refreshInterval     time.Duration
+	stopChan            chan struct{}
+	lastSelectionChange time.Time
 }
 
 type DisplayState struct {
@@ -225,6 +229,7 @@ func (m *Manager) selectNext() {
 		return
 	}
 	m.selectedIndex = (m.selectedIndex + 1) % len(m.displayList)
+	m.lastSelectionChange = time.Now()
 }
 
 func (m *Manager) selectPrev() {
@@ -234,6 +239,7 @@ func (m *Manager) selectPrev() {
 		return
 	}
 	m.selectedIndex = (m.selectedIndex - 1 + len(m.displayList)) % len(m.displayList)
+	m.lastSelectionChange = time.Now()
 }
 
 func (m *Manager) cycleScreenType(display int) {
@@ -367,5 +373,14 @@ func (m *Manager) render(display int) {
 		return
 	}
 
-	m.panel.DisplayDraw(display, screen.Render(display, m))
+	img := screen.Render(display, m)
+
+	showBorder := display == m.selectedDisplay() &&
+		time.Since(m.lastSelectionChange) < 1*time.Second
+
+	if showBorder {
+		draw.Rectangle(img.(*image.Gray), 0, 0, 128, 64)
+	}
+
+	m.panel.DisplayDraw(display, img)
 }
