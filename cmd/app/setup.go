@@ -12,7 +12,7 @@ const (
 
 	defaultMode               = modeDevelopment
 	defaultLogLevel           = "INFO"
-	defaultSpritePath         = "./assets/sprites"
+	defaultSpritePath         = "~/.config/go-display-driver/sprites"
 	defaultMessageBusURL      = "amqp://guest:guest@localhost:5672"
 	defaultRoutingKey         = "health.ping"
 	defaultExchange           = "health"

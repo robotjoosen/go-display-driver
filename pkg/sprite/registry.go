@@ -27,7 +27,7 @@ func LoadAll(basePath string) error {
 	}
 
 	for _, st := range spriteTypes {
-		filepath := filepath.Join(basePath, "sprites", string(st)+".png")
+		filepath := filepath.Join(basePath, string(st)+".png")
 		if err := Load(st, filepath); err != nil {
 			return err
 		}
