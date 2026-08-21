@@ -1,5 +1,7 @@
 # Display Driver
 
+![CI](https://github.com/robotjoosen/go-display-driver/actions/workflows/ci.yml/badge.svg)
+
 Multiple Display Driver using the TCA9548a I2C multiplexer and SSD1306 OLED displays.
 
 ## Architecture

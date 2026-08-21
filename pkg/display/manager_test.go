@@ -3,11 +3,13 @@ package display
 import (
 	"image"
 	"image/color"
+	"sync"
 	"testing"
 	"time"
 )
 
 type mockPanel struct {
+	mu    sync.Mutex
 	draws []drawCall
 }
 
@@ -17,8 +19,16 @@ type drawCall struct {
 }
 
 func (m *mockPanel) DisplayDraw(channel int, img image.Image) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.draws = append(m.draws, drawCall{channel, img})
 	return nil
+}
+
+func (m *mockPanel) drawCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.draws)
 }
 
 type simpleScreen struct{}
@@ -119,7 +129,7 @@ func TestRefreshEvent(t *testing.T) {
 	m.Input(RefreshEvent{Display: 0})
 	time.Sleep(150 * time.Millisecond)
 
-	if len(p.draws) == 0 {
+	if p.drawCount() == 0 {
 		t.Error("expected at least one draw call")
 	}
 }
@@ -233,7 +243,7 @@ func TestQueueRefreshDebounce(t *testing.T) {
 	m.Input(RefreshEvent{Display: 0})
 	time.Sleep(150 * time.Millisecond)
 
-	if len(p.draws) == 0 {
+	if p.drawCount() == 0 {
 		t.Error("expected at least one draw call")
 	}
 }
