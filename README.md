@@ -35,22 +35,58 @@ The detection iterates through channels 0-7 on the TCA9548 multiplexer and ident
 2. **Display Refresh**: `RefreshEvent` → `Screen.Render()` reads its own state/device data → draw to display
 3. **User Input**: RabbitMQ → `HandleControlInstructions` → `ControlEvent` → navigation/selection
 
-## How to install
+## Installing
 
-### Requirements
+Part of the [Mini Lab](https://github.com/robotjoosen/minilab-agent) fleet — installed the same
+way as `minilab-agent`. On the target device (`task` is optional; the scripts work standalone
+too):
 
-- [Taskfile](https://taskfile.dev/docs/installation)
-
-### TLDR;
 ```shell
-git clone git@github.com:robotjoosen/go-display-driver.git
-task build
 task install
 ```
 
+This detects the device's architecture, pulls the matching binary from the
+[latest release](https://github.com/robotjoosen/go-display-driver/releases), and walks through
+setting it up as a systemd service — asking for the RabbitMQ URL, confirming before every
+system-changing step (writing the unit file, enabling/starting the service).
+
+To update later:
+
+```shell
+task update
+```
+
+`update` preserves whatever's already configured and only asks for values genuinely missing
+from the existing install (e.g. a setting a newer release added).
+
+To remove it entirely:
+
+```shell
+task uninstall
+```
+
+Each task is a thin wrapper around the matching script under `scripts/` — see
+[scripts/install.sh](scripts/install.sh), [scripts/update.sh](scripts/update.sh), and
+[scripts/uninstall.sh](scripts/uninstall.sh) if you want to run them directly (e.g. via
+`curl | bash`) without cloning the repo or installing Taskfile.
+
+### Building from source
+
+Requires [Taskfile](https://taskfile.dev/docs/installation).
+
+```shell
+git clone git@github.com:robotjoosen/go-display-driver.git
+task build:arm
+```
+
+Releases are built and published automatically by [CI](.github/workflows/release.yml) on every
+`v*` tag — `task build`/`build:arm`/`build:darwin` are for local development builds.
+
 ## Configuration
 
-Environment variables (see `cmd/app/setup.go`):
+Set via `Environment=` lines in the systemd unit that `install.sh`/`update.sh` write at
+`/etc/systemd/system/display_driver.service` — not a local `.env` file. Environment variables
+(see `cmd/app/setup.go`):
 - `MODE` - Runtime mode (default: `DEV`)
 - `LOG_LEVEL` - Logging level (default: `INFO`)
 - `SPRITE_PATH` - Path to sprite assets (default: `~/.config/go-display-driver/sprites`)

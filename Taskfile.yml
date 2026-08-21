@@ -1,59 +1,37 @@
 version: '3'
 
-dotenv: ['.env']
+vars:
+  VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo dev
 
 tasks:
   install:
+    desc: Download the latest release and install go-display-driver as a systemd service
     platforms: [linux/arm64, linux/arm]
     cmds:
-      - cp "$BINARY_PATH" "$INSTALL_PATH"
-      - sudo chmod +x "$INSTALL_PATH"
-      - | 
-          bash -c "cat > $SERVICE_FILE" <<EOF
-          [Unit]
-          Description=OLED Display Service
-          After=network.target
+      - bash scripts/install.sh
 
-          [Service]
-          Type=simple
-          ExecStart=$INSTALL_PATH
-          Restart=on-failure
-          User=$USER
-          WorkingDirectory=/
-          Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-
-          [Install]
-          WantedBy=multi-user.target
-          EOF
-      - sudo systemctl daemon-reexec
-      - sudo systemctl daemon-reload
-      - sudo systemctl enable "$SERVICE_NAME"
-      - sudo systemctl start "$SERVICE_NAME"
-  
   uninstall:
+    desc: Stop and remove the go-display-driver systemd service and binary
     platforms: [linux/arm64, linux/arm]
     cmds:
-      - systemctl stop "$SERVICE_NAME"
-      - rm $INSTALL_PATH
-      - rm $SERVICE_FILE
-      - systemctl daemon-reexec
-      - systemctl daemon-reload
-  
+      - bash scripts/uninstall.sh
+
   update:
+    desc: Update an existing go-display-driver install to the latest release
     platforms: [linux/arm64, linux/arm]
     cmds:
-      - cp "$BINARY_PATH" "$INSTALL_PATH"
-      - sudo systemctl restart "$SERVICE_NAME"
-  
+      - bash scripts/update.sh
+
   build:
     cmds:
-      - cmd: env GOOS=darwin go build -o ./bin/darwin/display-driver ./cmd/app
+      - cmd: env GOOS=darwin go build -ldflags "-X main.version={{.VERSION}}" -o ./bin/darwin/display-driver ./cmd/app
         platforms: [darwin]
-      - cmd: env GOOS=linux GOARCH=arm64 go build -o ./bin/arm/display-driver ./cmd/app
+      - cmd: env GOOS=linux GOARCH=arm64 go build -ldflags "-X main.version={{.VERSION}}" -o ./bin/arm/display-driver ./cmd/app
         platforms: [linux/arm64, linux/arm]
-  
+
   build:darwin:
-      - cmd: env GOOS=darwin go build -o ./bin/darwin/display-driver ./cmd/app
-  
+      - cmd: env GOOS=darwin go build -ldflags "-X main.version={{.VERSION}}" -o ./bin/darwin/display-driver ./cmd/app
+
   build:arm:
-      - cmd: env GOOS=linux GOARCH=arm go build -o ./bin/arm/display-driver ./cmd/app
+      - cmd: env GOOS=linux GOARCH=arm go build -ldflags "-X main.version={{.VERSION}}" -o ./bin/arm/display-driver ./cmd/app

@@ -27,9 +27,13 @@ const (
 	maxRetries = 100
 )
 
+var version = "dev"
+
 func main() {
 	e := loadEnv()
 	initLog(e.LogLevel)
+
+	slog.Info("starting display-driver", slog.String("version", version))
 
 	bus, tcaMux := initializeBus()
 	displayList := discover.Displays(bus, tcaMux)

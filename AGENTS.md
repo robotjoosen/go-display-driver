@@ -308,3 +308,14 @@ All in `pkg/device/types.go` — this package has nothing to do with screens:
 - **`Manager` tracks only per-display UI state and animation state**, never device data
 - **Screens are stateless singletons** registered once via `init()`; all mutable state lives in `Manager`'s `Store[T]` instances
 - **`eventLoop` runs in its own goroutine** — always call `Close()` before shutdown
+
+## Deployment
+
+Distributed the same way as [`minilab-agent`](https://github.com/robotjoosen/minilab-agent):
+[`.github/workflows/release.yml`](.github/workflows/release.yml) builds `linux/arm64` and
+`linux/arm` binaries and publishes them as GitHub Release assets (`display-driver-linux-arm64`,
+`display-driver-linux-arm`) on every `v*` tag. `scripts/install.sh`, `scripts/update.sh`, and
+`scripts/uninstall.sh` download the matching asset and manage the `display_driver` systemd unit
+interactively; `task install`/`update`/`uninstall` are thin wrappers around them. There is no
+`.env` file at runtime — configuration lives in `Environment=` lines the scripts write into the
+systemd unit.
