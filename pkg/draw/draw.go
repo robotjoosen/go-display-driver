@@ -32,6 +32,19 @@ func Circle(img *image.Gray, x, y, r int) {
 	circle(img, x, y, r, 0.0, math.Pi*2, white)
 }
 
+func CircleFilled(img *image.Gray, cx, cy, r int) {
+	for dy := -r; dy <= r; dy++ {
+		dx := int(math.Sqrt(float64(r*r - dy*dy)))
+		x1 := cx - dx
+		x2 := cx + dx
+		for x := x1; x <= x2; x++ {
+			if x >= 0 && x < 128 && cy+dy >= 0 && cy+dy < 64 {
+				img.SetGray(x, cy+dy, white)
+			}
+		}
+	}
+}
+
 func Rectangle(img *image.Gray, x, y, w, h int) {
 	rectangle(img, x, y, w, h, white)
 }

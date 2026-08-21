@@ -30,6 +30,9 @@ func (s *loading) Render(display int, m *display.Manager) image.Image {
 	draw.RectangleRoundedBorders(img, 5, 45, 123, 58, 3)
 	draw.Rectangle(img, 7, 47, 7+progressWidth, 56)
 
+	radius := m.AnimStore.Tick(display, state.ScreenType)
+	draw.CircleFilled(img, 64, 32, radius)
+
 	return img
 }
 
