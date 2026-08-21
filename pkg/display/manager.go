@@ -2,17 +2,12 @@ package display
 
 import (
 	"fmt"
+	"image"
 	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/robotjoosen/go-display-driver/pkg/draw"
-	"github.com/robotjoosen/go-display-driver/pkg/state"
-)
-
-const (
-	stateDebounceDelay = 5 * time.Second
-	statePersistPeriod = 30 * time.Second
 )
 
 type Event interface {
@@ -48,49 +43,40 @@ func (ListUpEvent) isEvent()      {}
 func (ListDownEvent) isEvent()    {}
 
 type Manager struct {
-	mu              sync.RWMutex
-	panel           Panel
-	displays        map[int]DisplayState
-	selectedIndex   int
-	displayList     []int
-	lastRender      map[int]time.Time
-	eventQueue      chan Event
-	keyState        map[int]string
-	keyRepeatMs     int
-	refreshInterval time.Duration
-	stopChan        chan struct{}
-	statePath       string
-	stateTimer      *time.Timer
-	statePersist    time.Time
-	stateDirty      bool
+	mu                  sync.RWMutex
+	panel               Panel
+	selectedIndex       int
+	displayList         []int
+	eventQueue          chan Event
+	keyState            map[int]string
+	keyRepeatMs         int
+	refreshInterval     time.Duration
+	stopChan            chan struct{}
+	lastSelectionChange time.Time
+	stateStore          *Store[DisplayState]
+	renderTimeStore     *Store[time.Time]
+	AnimStore           *AnimationStore
 }
 
-type DisplayState struct {
-	ScreenType ScreenType
-	Data       any
-	ListIndex  int
-	ListLength int
-}
-
-func NewManager(displays []int, p Panel, statePath string) *Manager {
-	displayMap := make(map[int]DisplayState)
-	lastRenderMap := make(map[int]time.Time)
+func NewManager(displays []int, p Panel) *Manager {
+	stateStore := NewStore[DisplayState]()
+	renderTimeStore := NewStore[time.Time]()
 	for _, d := range displays {
-		displayMap[d] = DisplayState{}
-		lastRenderMap[d] = time.Time{}
+		stateStore.Set(d, DisplayState{})
+		renderTimeStore.Set(d, time.Time{})
 	}
 
 	m := &Manager{
 		panel:           p,
-		displays:        displayMap,
 		displayList:     displays,
-		lastRender:      lastRenderMap,
 		eventQueue:      make(chan Event, 100),
 		keyState:        make(map[int]string),
 		keyRepeatMs:     200,
 		refreshInterval: time.Duration(len(displays)) * 20 * time.Millisecond,
 		stopChan:        make(chan struct{}),
-		statePath:       statePath,
+		stateStore:      stateStore,
+		renderTimeStore: renderTimeStore,
+		AnimStore:       NewAnimationStore(),
 	}
 
 	go m.eventLoop()
@@ -108,18 +94,13 @@ func (m *Manager) Input(e Event) {
 func (m *Manager) eventLoop() {
 	ticker := time.NewTicker(m.refreshInterval)
 	defer ticker.Stop()
-	stateTicker := time.NewTicker(statePersistPeriod)
-	defer stateTicker.Stop()
 	for {
 		select {
 		case e := <-m.eventQueue:
 			m.handle(e)
 		case <-ticker.C:
 			m.refreshAll()
-		case <-stateTicker.C:
-			m.persistStateIfDirty()
 		case <-m.stopChan:
-			m.saveState()
 			return
 		}
 	}
@@ -214,9 +195,8 @@ func (m *Manager) handleControl(e ControlEvent) {
 }
 
 func (m *Manager) getCurrentScreenType(display int) ScreenType {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return m.displays[display].ScreenType
+	state, _ := m.stateStore.Get(display)
+	return state.ScreenType
 }
 
 func (m *Manager) selectedDisplay() int {
@@ -226,15 +206,6 @@ func (m *Manager) selectedDisplay() int {
 		return 0
 	}
 	return m.displayList[m.selectedIndex]
-}
-
-func (m *Manager) isSelectedDisplay(display int) bool {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	if len(m.displayList) == 0 || m.selectedIndex < 0 || m.selectedIndex >= len(m.displayList) {
-		return false
-	}
-	return m.displayList[m.selectedIndex] == display
 }
 
 func (m *Manager) DisplayList() []int {
@@ -252,7 +223,7 @@ func (m *Manager) selectNext() {
 		return
 	}
 	m.selectedIndex = (m.selectedIndex + 1) % len(m.displayList)
-	m.markStateDirty()
+	m.lastSelectionChange = time.Now()
 }
 
 func (m *Manager) selectPrev() {
@@ -262,14 +233,15 @@ func (m *Manager) selectPrev() {
 		return
 	}
 	m.selectedIndex = (m.selectedIndex - 1 + len(m.displayList)) % len(m.displayList)
-	m.markStateDirty()
+	m.lastSelectionChange = time.Now()
 }
 
 func (m *Manager) cycleScreenType(display int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	current := m.displays[display].ScreenType
+	state, _ := m.stateStore.Get(display)
+	current := state.ScreenType
 	idx := -1
 	for i, st := range ScreenTypeCycleOrder {
 		if st == current {
@@ -279,10 +251,9 @@ func (m *Manager) cycleScreenType(display int) {
 	}
 
 	nextIdx := (idx + 1) % len(ScreenTypeCycleOrder)
-	state := m.displays[display]
 	state.ScreenType = ScreenTypeCycleOrder[nextIdx]
 	state.ListIndex = 0
-	m.displays[display] = state
+	m.stateStore.Set(display, state)
 
 	slog.Debug("cycleScreenType",
 		"display", display,
@@ -291,69 +262,61 @@ func (m *Manager) cycleScreenType(display int) {
 		"nextIdx", nextIdx,
 		"nextScreen", ScreenTypeCycleOrder[nextIdx],
 	)
-	m.markStateDirty()
 }
 
 func (m *Manager) SetScreen(display int, screenType ScreenType, data any) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	state := m.displays[display]
+	state, _ := m.stateStore.Get(display)
 	state.ScreenType = screenType
 	state.Data = data
 	state.ListIndex = 0
 	state.ListLength = 0
-	m.displays[display] = state
-	m.markStateDirty()
+	m.stateStore.Set(display, state)
 }
 
 func (m *Manager) SetListLength(display int, length int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	state := m.displays[display]
+	state, _ := m.stateStore.Get(display)
 	state.ListLength = length
-	m.displays[display] = state
+	m.stateStore.Set(display, state)
 }
 
 func (m *Manager) SetListIndex(display int, index int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	state := m.displays[display]
+	state, _ := m.stateStore.Get(display)
 	if state.ListLength > 0 {
 		state.ListIndex = index % state.ListLength
 	}
-	m.displays[display] = state
-	m.markStateDirty()
+	m.stateStore.Set(display, state)
 }
 
 func (m *Manager) listUp(display int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	state := m.displays[display]
+	state, _ := m.stateStore.Get(display)
 	if state.ListLength <= 0 {
 		return
 	}
 	state.ListIndex = (state.ListIndex - 1 + state.ListLength) % state.ListLength
-	m.displays[display] = state
-	m.markStateDirty()
+	m.stateStore.Set(display, state)
 }
 
 func (m *Manager) listDown(display int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	state := m.displays[display]
+	state, _ := m.stateStore.Get(display)
 	if state.ListLength <= 0 {
 		return
 	}
 	state.ListIndex = (state.ListIndex + 1) % state.ListLength
-	m.displays[display] = state
-	m.markStateDirty()
+	m.stateStore.Set(display, state)
 }
 
 func (m *Manager) GetState(display int) (DisplayState, bool) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	state, ok := m.displays[display]
-	return state, ok
+	return m.stateStore.Get(display)
 }
 
 func (m *Manager) refreshAll() {
@@ -368,9 +331,7 @@ func (m *Manager) refreshAll() {
 }
 
 func (m *Manager) queueRefresh(display int) {
-	m.mu.Lock()
-	lastRender := m.lastRender[display]
-	m.mu.Unlock()
+	lastRender, _ := m.renderTimeStore.Get(display)
 
 	now := time.Now()
 	if now.Sub(lastRender) < time.Duration(RefreshDebounceMs)*time.Millisecond {
@@ -381,10 +342,8 @@ func (m *Manager) queueRefresh(display int) {
 }
 
 func (m *Manager) render(display int) {
-	m.mu.Lock()
-	state, ok := m.displays[display]
-	m.lastRender[display] = time.Now()
-	m.mu.Unlock()
+	state, ok := m.stateStore.Get(display)
+	m.renderTimeStore.Set(display, time.Now())
 
 	if !ok {
 		return
@@ -402,81 +361,13 @@ func (m *Manager) render(display int) {
 	}
 
 	img := screen.Render(display, m)
-	if m.isSelectedDisplay(display) {
-		draw.Circle(img, 122, 6, 4)
+
+	showBorder := display == m.selectedDisplay() &&
+		time.Since(m.lastSelectionChange) < 1*time.Second
+
+	if showBorder {
+		draw.Rectangle(img.(*image.Gray), 0, 0, 128, 64)
 	}
+
 	m.panel.DisplayDraw(display, img)
-}
-
-func (m *Manager) LoadState() error {
-	s, err := state.Load(m.statePath)
-	if err != nil {
-		return err
-	}
-	if s == nil {
-		return nil
-	}
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if s.SelectedIndex >= 0 && s.SelectedIndex < len(m.displayList) {
-		m.selectedIndex = s.SelectedIndex
-	}
-
-	for displayID, snapshot := range s.Displays {
-		if ds, ok := m.displays[displayID]; ok {
-			ds.ScreenType = ScreenType(snapshot.ScreenType)
-			ds.ListIndex = snapshot.ListIndex
-			m.displays[displayID] = ds
-		}
-	}
-
-	return nil
-}
-
-func (m *Manager) SaveState() error {
-	m.mu.RLock()
-	s := &state.State{
-		SelectedIndex: m.selectedIndex,
-		Displays:      make(map[int]state.DisplaySnapshot),
-	}
-	for displayID, ds := range m.displays {
-		s.Displays[displayID] = state.DisplaySnapshot{
-			ScreenType: string(ds.ScreenType),
-			ListIndex:  ds.ListIndex,
-		}
-	}
-	m.mu.RUnlock()
-
-	return state.Save(s, m.statePath)
-}
-
-func (m *Manager) saveState() {
-	if err := m.SaveState(); err != nil {
-		slog.Error("failed to save state", "err", err)
-	}
-}
-
-func (m *Manager) persistStateIfDirty() {
-	m.mu.Lock()
-	dirty := m.stateDirty
-	m.mu.Unlock()
-
-	if dirty {
-		m.saveState()
-		m.mu.Lock()
-		m.stateDirty = false
-		m.mu.Unlock()
-	}
-}
-
-func (m *Manager) markStateDirty() {
-	m.stateDirty = true
-	if m.stateTimer != nil {
-		m.stateTimer.Stop()
-	}
-	m.stateTimer = time.AfterFunc(stateDebounceDelay, func() {
-		m.persistStateIfDirty()
-	})
 }

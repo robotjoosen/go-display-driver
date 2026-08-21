@@ -11,7 +11,8 @@ import (
 	"github.com/robotjoosen/go-display-driver/pkg/device"
 	"github.com/robotjoosen/go-display-driver/pkg/discover"
 	"github.com/robotjoosen/go-display-driver/pkg/display"
-	"github.com/robotjoosen/go-display-driver/pkg/display/screen/startup"
+	_ "github.com/robotjoosen/go-display-driver/pkg/display/screen"
+	startupScreen "github.com/robotjoosen/go-display-driver/pkg/display/screen/startup"
 	"github.com/robotjoosen/go-display-driver/pkg/panel"
 	"github.com/robotjoosen/go-display-driver/pkg/sprite"
 	"github.com/robotjoosen/go-display-driver/pkg/tca9548"
@@ -52,20 +53,10 @@ func main() {
 	}
 	sprite.StartFileWatcher(30*time.Second, e.SpritePath)
 
-	sm := display.NewManager(displayList, display.NewPanelAdapter(p), e.StatePath)
+	sm := display.NewManager(displayList, display.NewPanelAdapter(p))
 
 	for _, d := range displayList {
-		sm.SetScreen(d, display.ScreenStartup, startup.StartupData{})
-		sm.Input(display.RefreshEvent{Display: d})
-	}
-
-	if err := sm.LoadState(); err != nil {
-		slog.Warn("failed to load persisted state",
-			slog.String("err", err.Error()),
-		)
-	}
-
-	for _, d := range displayList {
+		sm.SetScreen(d, display.ScreenStartup, startupScreen.StartupData{})
 		sm.Input(display.RefreshEvent{Display: d})
 	}
 
