@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/url"
@@ -27,9 +28,20 @@ const (
 	maxRetries = 100
 )
 
+// version is set at build time via -ldflags "-X main.version=vX.Y.Z" (see
+// Taskfile.yml and .github/workflows/release.yml). It stays "dev" for
+// unstamped local builds.
 var version = "dev"
 
 func main() {
+	// Must be checked before loadEnv/initLog: --version has to work even
+	// when required environment variables (e.g. message bus config) are
+	// missing, and must never touch the I2C bus or the message bus.
+	if len(os.Args) > 1 && os.Args[1] == "--version" {
+		fmt.Println(version)
+		return
+	}
+
 	e := loadEnv()
 	initLog(e.LogLevel)
 
